@@ -1,3 +1,4 @@
+
 name: Build APK
 
 on:
@@ -8,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,7 +28,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Fails the build early if the converter core is broken.
       - name: Self-test converter core
         run: |
           mkdir -p build_selftest
@@ -36,8 +37,12 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Accept Android SDK Licenses
+        run: yes | sdkmanager --licenses
+
       - name: Install SDK packages
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+        run: |
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -53,3 +58,4 @@ jobs:
           name: Mtz2Bak-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+          
