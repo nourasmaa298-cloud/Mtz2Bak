@@ -1,4 +1,3 @@
-
 name: Build APK
 
 on:
@@ -9,18 +8,28 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Unzip project
+      - name: Locate project
         run: |
-          if [ -f Mtz2Bak.zip ]; then
-            unzip -o Mtz2Bak.zip
+          echo "Repository files:"
+          find . -maxdepth 4 -not -path "./.git/*" | sort | head -80
+          ZIP=$(find . -iname "Mtz2Bak*.zip" -not -path "./.git/*" | head -1)
+          if [ -n "$ZIP" ]; then
+            echo "Unzipping $ZIP"
+            mkdir -p _proj
+            unzip -o "$ZIP" -d _proj
           fi
-          echo "Java files found:"
-          find . -name "*.java" -not -path "./.git/*"
+          SETTINGS=$(find . -name settings.gradle -not -path "./.git/*" | head -1)
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: settings.gradle not found anywhere in the repository"
+            exit 1
+          fi
+          ROOT=$(dirname "$SETTINGS")
+          echo "Project root: $ROOT"
+          echo "PROJECT_DIR=$ROOT" >> "$GITHUB_ENV"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -29,19 +38,17 @@ jobs:
           java-version: '17'
 
       - name: Self-test converter core
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           mkdir -p build_selftest
           javac -encoding UTF-8 -d build_selftest app/src/main/java/com/mtz2bak/core/*.java ci/SelfTest.java
           java -cp build_selftest SelfTest
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
-        with:
-          packages: 'platform-tools'
+        uses: android-actions/setup-android@v3
 
       - name: Install SDK packages
-        run: |
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -49,12 +56,12 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Mtz2Bak-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          
